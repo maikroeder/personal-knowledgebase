@@ -191,7 +191,7 @@ The entries before authentication (`kiwifs mcp --remote http://127.0.0.1:3333 --
 now get 401. Claude's keys are a read key for `moin` and write keys for `kiwi` and `Events`.
 
 `config/claude_desktop_config.multispace.example.json` has the same three entries for Claude Desktop, with the wrapper
-(not merged into the real file yet). Each space offers 71 tools. `kiwi_write` takes an `actor` argument that becomes the git
+(not merged into the real file yet). Each space offers 71 tools (81 since 0.19.94). `kiwi_write` takes an `actor` argument that becomes the git
 author; pass `claude`, so `git log --format=%an` separates agent writes from human ones. In this first setup there was no authentication (`--auth none`; the server binds to `127.0.0.1` only); see
 "Authentication per space" below for what replaced it and what is still open.
 
@@ -279,6 +279,26 @@ What is still open:
   Claude Desktop were not tried.
 - The key store is a plain file (mode 600) in the `--root`. The keys of the first token round were partly shown in
   masked form (four characters) in the conversation; all of them were replaced.
+
+### Update to 0.19.94 and the web UI (2026-11-16, 00:14 to 00:22)
+
+- Web UI and keys. With keys on a space, the web UI of 0.19.58 cannot sign in: selecting `moin` showed "Your session has
+  expired. Please refresh the page to sign in again." (a generic text for any 401), and a search returned nothing. The
+  UI's JavaScript bundle (read in the browser pane, nothing typed) has no `Authorization` header, no `Bearer`, no cookie
+  handling and no key field; the hub, which has no key, loads. The docs page on auth tokens does not cover the UI. The
+  REST matrix and the MCP checks had passed, so this was found only when the UI was opened; the UI was not part of the
+  checks of layout B, and the step should have included it.
+- `kiwifs update` worked at 00:17 (0.19.58 to 0.19.94; the earlier attempt on 2026-11-15 timed out). It replaces
+  `/opt/homebrew/bin/kiwifs` without Homebrew knowing, so a later `brew upgrade kiwifs` may complain. The roots were
+  backed up first, with the server stopped (`tar -czf ~/Knowledge-backup-20261116.tgz -C ~ Knowledge`: 18 MB, 10215
+  entries, mode 600; it contains the hub's `config.toml` with the keys, so keep it private).
+- The server started with the same command without warnings. `tools/auth_check.sh`, `mcp_roundtrip_auth.py` and
+  `auth_check3.py` gave the same results as before the update, except that each space now offers 81 tools instead of
+  71. The UI bundle changed (8.9 MB to 8.2 MB) and still has no Authorization header, no Bearer and no key field, so
+  0.19.94 cannot sign in either.
+- Options for browsing: (1) a read-only proxy that adds the keys (GET and HEAD only; while it runs, anything on the
+  machine that reaches its port reads all spaces without a key); (2) none, using Claude and the files. Not decided at
+  the time of writing; the default is (2).
 
 ## Uninstall
 
@@ -382,7 +402,7 @@ Run by the AI collaborator on 2026-10-31 in a Linux cloud container: both exampl
 JSON.
 
 Not run: the Claude Desktop half of step 4 (the multi-space example is written, not merged); a tool call from Claude Desktop or from an interactive Claude Code session (the one client call, `claude -p` at 00:10, was
-non-interactive; every other round trip was driven by a script through the proxy); a launchd agent for the server; a `kiwifs update` that works;
+non-interactive; every other round trip was driven by a script through the proxy); a launchd agent for the server; a rollback from the backup;
 the uninstall steps; a check of how `markdown lint reject-errors` decides what to reject. The `claude mcp add` syntax is
 now confirmed. The location of the Claude Desktop logs and the JSON-RPC handshake in step 5 were written from
 general knowledge of those tools and are still the least certain parts.
