@@ -1,16 +1,16 @@
 {
   "mcpServers": {
     "kiwi-personal": {
-      "command": "/opt/homebrew/bin/kiwifs",
-      "args": ["mcp", "--remote", "http://127.0.0.1:3333", "--space", "default"]
+      "command": "/bin/bash",
+      "args": ["/Users/maik/Code/personal-knowledgebase/tools/kiwi-mcp.sh", "kiwi", "kiwifs-kiwi-write"]
     },
     "kiwi-moin": {
-      "command": "/opt/homebrew/bin/kiwifs",
-      "args": ["mcp", "--remote", "http://127.0.0.1:3333", "--space", "moin"]
+      "command": "/bin/bash",
+      "args": ["/Users/maik/Code/personal-knowledgebase/tools/kiwi-mcp.sh", "moin", "kiwifs-moin-read"]
     },
     "kiwi-events": {
-      "command": "/opt/homebrew/bin/kiwifs",
-      "args": ["mcp", "--remote", "http://127.0.0.1:3333", "--space", "Events"]
+      "command": "/bin/bash",
+      "args": ["/Users/maik/Code/personal-knowledgebase/tools/kiwi-mcp.sh", "Events", "kiwifs-events-write"]
     }
   }
 }

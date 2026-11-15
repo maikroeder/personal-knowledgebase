@@ -4,7 +4,7 @@ import shutil
 import sys
 import time
 
-CONFIG = os.path.expanduser("~/Knowledge/kiwi/.kiwi/config.toml")
+CONFIG = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else "~/Knowledge/hub/.kiwi/config.toml")
 TOKDIR = os.path.expanduser("~/.kiwi-tokens")
 RAW_FILES = []
 for _name in sorted(os.listdir(TOKDIR)):

@@ -106,19 +106,21 @@ Update with `kiwifs update`.
 
 ## Second phase: three spaces on one server (2026-11-15)
 
-The knowledge root `~/Knowledge/kiwi` stays the default space. Two more roots were added, one KiwiFS server
-serves all three, and each space gets its own MCP entry. Everything below was run on 2026-11-15; who ran what is
-listed under "What has and has not been run".
+Until 2026-11-15 23:44 the knowledge root `~/Knowledge/kiwi` was the `--root` (the space `default`), and the server
+served it with `moin` and `Events` added. Since 2026-11-16 00:00 (layout B, see "Authentication per space") the
+`--root` is a hub that holds only the `kb` template pages and the keys, and all three knowledge roots are spaces.
+Everything below was run on 2026-11-15 and 16; who ran what is listed under "What has and has not been run".
 
 | Space (URL name) | Root | Content |
 | --- | --- | --- |
-| `default` | `~/Knowledge/kiwi` | own pages, unchanged |
+| `default` | `~/Knowledge/hub` | template pages only, plus `.kiwi/config.toml` with the keys (denied through the API) |
+| `kiwi` | `~/Knowledge/kiwi` | own pages, unchanged |
 | `moin` | `~/Knowledge/moin` | 4708 pages converted from a MoinMoin wiki, year folders |
 | `Events` | `~/Knowledge/events` | personal events, same page schema as the OpenHeidelberg Events space |
 
 ```bash
-kiwifs serve --root ~/Knowledge/kiwi --space moin=$HOME/Knowledge/moin --space Events=$HOME/Knowledge/events \
-  --host 127.0.0.1 --port 3333
+kiwifs serve --root ~/Knowledge/hub --space kiwi=$HOME/Knowledge/kiwi --space moin=$HOME/Knowledge/moin \
+  --space Events=$HOME/Knowledge/events --host 127.0.0.1 --port 3333 --auth perspace
 ```
 
 The log then says `space "moin" mounted at /api/kiwi/moin`, and the web UI has a space switcher. The REST routes
@@ -177,13 +179,19 @@ in-process entry from step 4 must be removed first (`claude mcp remove kiwifs`),
 the same git repository.
 
 ```bash
-claude mcp add --scope user kiwi-personal -- /opt/homebrew/bin/kiwifs mcp --remote http://127.0.0.1:3333 --space default
-claude mcp add --scope user kiwi-moin -- /opt/homebrew/bin/kiwifs mcp --remote http://127.0.0.1:3333 --space moin
-claude mcp add --scope user kiwi-events -- /opt/homebrew/bin/kiwifs mcp --remote http://127.0.0.1:3333 --space Events
+claude mcp add --scope user kiwi-personal -- /bin/bash $HOME/Code/personal-knowledgebase/tools/kiwi-mcp.sh kiwi kiwifs-kiwi-write
+claude mcp add --scope user kiwi-moin -- /bin/bash $HOME/Code/personal-knowledgebase/tools/kiwi-mcp.sh moin kiwifs-moin-read
+claude mcp add --scope user kiwi-events -- /bin/bash $HOME/Code/personal-knowledgebase/tools/kiwi-mcp.sh Events kiwifs-events-write
 ```
 
-`config/claude_desktop_config.multispace.example.json` has the same three entries for Claude Desktop (not merged
-into the real file yet). Each space offers 71 tools. `kiwi_write` takes an `actor` argument that becomes the git
+These are the entries with authentication on (registered 2026-11-16 00:03, `claude mcp list` printed `Connected` for all
+three). The wrapper `tools/kiwi-mcp.sh <space> <Keychain item>` reads the key from the macOS Keychain and starts
+`kiwifs mcp --remote http://127.0.0.1:3333 --space <space> --api-key <key>`; no key is stored in `~/.claude.json`.
+The entries before authentication (`kiwifs mcp --remote http://127.0.0.1:3333 --space default|moin|Events`, no key)
+now get 401. Claude's keys are a read key for `moin` and write keys for `kiwi` and `Events`.
+
+`config/claude_desktop_config.multispace.example.json` has the same three entries for Claude Desktop, with the wrapper
+(not merged into the real file yet). Each space offers 71 tools. `kiwi_write` takes an `actor` argument that becomes the git
 author; pass `claude`, so `git log --format=%an` separates agent writes from human ones. In this first setup there was no authentication (`--auth none`; the server binds to `127.0.0.1` only); see
 "Authentication per space" below for what replaced it and what is still open.
 
@@ -198,22 +206,29 @@ its result next to itself (`tools/*.txt` is ignored by git).
 - `mcp_roundtrip.py`: lists the tools and searches in each space through the proxy, into `mcp-roundtrip.txt`.
 - `mcp_writetest.py`: write, read back, write an invalid page, delete both, git log; into `mcp-writetest.txt`.
 - `lint_summary.py`: counts `kiwifs lint --json` output by kind.
+- `kiwi-mcp.sh`: the MCP proxy for one space with its key from the Keychain (see above).
+- `keychain_import.sh`: copies the keys from `~/.kiwi-tokens/<name>.txt` into Keychain items `kiwifs-<name>`; the script
+  holds no key and prints item names only.
+- `mcp_roundtrip_auth.py`: read-only round trip through the wrapper for the three spaces and two negative cases (a
+  wrong key, no key); prints sizes and error text, into `mcp-roundtrip-auth.txt`.
+- `strip_old_auth.py`: removes the `[auth]` block from a root's `config.toml` (used once, on the old default root).
 - `merge_tokens.py`: puts the keys from `~/.kiwi-tokens/*.txt` (the output of `kiwifs token create`) back into
   `config.toml` as `[[auth.api_keys]]` entries, because each `token create` replaces the list; sets mode 600,
   keeps a backup, prints space, scope and actor only.
-- `auth_check.sh`: HTTP status per token and space against the running server (keys sent through stdin, never
+- `auth_check.sh`: HTTP status per token for the hub and the three spaces against the running server (keys sent through stdin, never
   printed), into `auth_check.txt`.
 - `auth_check2.py`, `auth_check3.py`: calls to the server's `/mcp` endpoint with and without a token, and reads
   of `.kiwi/config.toml`; print status, sizes and True/False only, into `auth_check2.txt`, `auth_check3.txt`.
 
-### Authentication per space (2026-11-15, 23:26 to 23:44)
+### Authentication per space (2026-11-15 23:26 to 2026-11-16 00:03)
 
 `--auth perspace` with scoped tokens replaced `--auth none`. Everything here was run by Maik in a terminal; the AI
 collaborator read the result files that the scripts wrote. No key was pasted into the conversation (masked output only).
 
 How it works, as observed with 0.19.58:
 
-- `kiwifs token create --root ~/Knowledge/kiwi --space S --scope read|write|admin --actor NAME` writes an
+- `kiwifs token create --root ~/Knowledge/kiwi --space S --scope read|write|admin --actor NAME` (first layout; in
+  layout B the root is `~/Knowledge/hub`) writes an
   `[[auth.api_keys]]` entry (`actor`, `key`, `scope`, `space`) into `<root>/.kiwi/config.toml`, sets `[auth] type =
   "perspace"` and prints the key once. `serve` must be started with `--auth perspace` as well; the flag was passed
   explicitly because it is unknown whether the flag default `none` would override the file.
@@ -235,19 +250,31 @@ How it works, as observed with 0.19.58:
 
 What is still open:
 
-- `/mcp` of the server (the streamable-HTTP endpoint) answers without a token. With no token: `initialize` 200,
+- `/mcp` of the server (the streamable-HTTP endpoint) answers without a token, and still does in layout B, where it
+  serves only the hub. Observations from the first layout: with no token: `initialize` 200,
   `tools/list` 71 tools, a search and a tree call returned data from the default root. A search for a word that
   exists only in `moin` returned an empty result, so `/mcp` serves the `--root` only. Reading `.kiwi/config.toml` and a
   path with `..` through it were refused. Writes through `/mcp` were not tried. The proxies registered per space
   (`kiwifs mcp --remote ... --space S`) are not affected, but nothing stops another process or a web page from
   calling `/mcp` on `127.0.0.1:3333`; whether the server answers cross-site requests was not tested.
-- Decision, 23:44: layout B. Serve a nearly empty root as `--root` (a hub that holds only the config) and mount the
-  three knowledge roots with `--space` (`kiwi`, `moin`, `Events`), so that the open `/mcp` shows nothing and the keys
-  do not sit next to the notes. Consequences: the space `default` becomes `kiwi`, the tokens and the Claude Code entry
-  for the default space must be re-created, and it is not known whether `kiwifs serve` starts on an empty root. **Not
-  done yet at the time of writing.**
-- The three MCP entries still run without a token (`--api-key` exists on `kiwifs mcp`); the plan is a wrapper script
-  that reads the key from the macOS Keychain, so that no key is stored in `~/.claude.json`. Not done.
+- Layout B (decided 23:44, running since 23:59): the server runs with `--root ~/Knowledge/hub` and mounts the three
+  knowledge roots with `--space`. The hub came from a test: `kiwifs serve` on an empty folder (port 3334) initialised it
+  itself (git repository, `.kiwi/`, the `kb` template pages); that folder was copied to `~/Knowledge/hub`, and its
+  `config.toml` is excluded from git. The tokens were created with `--root ~/Knowledge/hub` and `--space kiwi|moin|Events`
+  (six keys: read for `moin`, write for `kiwi` and `Events` as actor `claude`, one admin per space as `maik`);
+  `strip_old_auth.py` removed the old keys from the kiwi root's config. Result of `tools/auth_check.sh`: each token
+  gets 200 on its own space and 401 on the other two; without a token 401 on kiwi, moin and Events; `/mcp` answers 200
+  but serves the hub: a search for a word from the notes and for a word found only in `moin` returned nothing, and the
+  tree lists template files only. Two rules follow: a space without keys in `config.toml` is open (the hub answers 200
+  without a token, and so did a test server started with `--auth perspace` and no keys at all), so `tools/auth_check.sh`
+  runs after every config change; and `kiwifs serve` initialises any empty root it is given.
+- MCP entries with keys (00:01 to 00:03): the six keys were copied into the macOS Keychain
+  (`tools/keychain_import.sh`, items `kiwifs-<name>`). `tools/mcp_roundtrip_auth.py`: the three spaces through the wrapper
+  gave 71 tools and answered search and tree; `moin` with the `Events` key gave `invalid API key (HTTP 401)`, `moin` with
+  no key gave `missing bearer token (HTTP 401)`; so the proxy sends the key as a bearer token. The key is visible in `ps`
+  to the same user while a proxy runs. `kiwi_tree` on `moin` returns about 226,000 characters, so a client must not call it
+  without a path. The three Claude Code entries were registered with the wrapper and printed `Connected`. A tool call from
+  inside a Claude Code session through them was not yet run at the time of writing.
 - The key store is a plain file (mode 600) in the `--root`. The keys of the first token round were partly shown in
   masked form (four characters) in the conversation; all of them were replaced.
 
@@ -275,7 +302,7 @@ README.md
 CLAUDE.md
 config/claude_desktop_config.example.json         in-process (stdio) MCP entry for Claude Desktop
 config/claude_desktop_config.proxy.example.json   proxy MCP entry (a running kiwifs serve)
-config/claude_desktop_config.multispace.example.json   three proxy entries, one per space
+config/claude_desktop_config.multispace.example.json   three proxy entries, one per space, with the Keychain wrapper
 events-seed/                                      SCHEMA.md and three example event pages
 tools/moin2md.py                                  MoinMoin 1.5 to Markdown converter
 tools/*.sh, tools/*.py                            read-only checks and an MCP round trip (see above)
@@ -354,7 +381,7 @@ JSON.
 
 Not run: the Claude Desktop half of step 4 (the multi-space example is written, not merged); a tool call from inside
 a Claude Code or Claude Desktop session (the round trip above went through the proxy, driven by a script, not
-through a client); the hub-root layout (B) and token-protected MCP entries (the matrix above ran against the old layout, with `default` as `--root`); a launchd agent for the server; a `kiwifs update` that works;
+through a client); a launchd agent for the server; a `kiwifs update` that works;
 the uninstall steps; a check of how `markdown lint reject-errors` decides what to reject. The `claude mcp add` syntax is
 now confirmed. The location of the Claude Desktop logs and the JSON-RPC handshake in step 5 were written from
 general knowledge of those tools and are still the least certain parts.
