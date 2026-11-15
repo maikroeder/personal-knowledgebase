@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kiwifs": {
+      "command": "/opt/homebrew/bin/kiwifs",
+      "args": ["mcp", "--remote", "http://127.0.0.1:3333"]
+    }
+  }
+}

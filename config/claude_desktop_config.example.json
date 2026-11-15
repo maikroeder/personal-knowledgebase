@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kiwifs": {
+      "command": "/opt/homebrew/bin/kiwifs",
+      "args": ["mcp", "--root", "/Users/maik/Knowledge/kiwi"]
+    }
+  }
+}

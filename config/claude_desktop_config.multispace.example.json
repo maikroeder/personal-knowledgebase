@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "kiwi-personal": {
+      "command": "/opt/homebrew/bin/kiwifs",
+      "args": ["mcp", "--remote", "http://127.0.0.1:3333", "--space", "default"]
+    },
+    "kiwi-moin": {
+      "command": "/opt/homebrew/bin/kiwifs",
+      "args": ["mcp", "--remote", "http://127.0.0.1:3333", "--space", "moin"]
+    },
+    "kiwi-events": {
+      "command": "/opt/homebrew/bin/kiwifs",
+      "args": ["mcp", "--remote", "http://127.0.0.1:3333", "--space", "Events"]
+    }
+  }
+}

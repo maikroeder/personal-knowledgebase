@@ -1,0 +1,6 @@
+.DS_Store
+.idea/
+*.log
+
+tools/*.txt
+__pycache__/
