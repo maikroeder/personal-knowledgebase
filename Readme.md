@@ -273,8 +273,10 @@ What is still open:
   gave 71 tools and answered search and tree; `moin` with the `Events` key gave `invalid API key (HTTP 401)`, `moin` with
   no key gave `missing bearer token (HTTP 401)`; so the proxy sends the key as a bearer token. The key is visible in `ps`
   to the same user while a proxy runs. `kiwi_tree` on `moin` returns about 226,000 characters, so a client must not call it
-  without a path. The three Claude Code entries were registered with the wrapper and printed `Connected`. A tool call from
-  inside a Claude Code session through them was not yet run at the time of writing.
+  without a path. The three Claude Code entries were registered with the wrapper and printed `Connected`. A non-interactive call from Claude Code at 00:10 (`claude -p`, allowed to use only
+  `mcp__kiwi-moin__kiwi_search`, asked for the number of results for one word) was answered with 153: a Claude Code
+  session reached `moin` through the entry, the wrapper, the Keychain key and the server. An interactive session and
+  Claude Desktop were not tried.
 - The key store is a plain file (mode 600) in the `--root`. The keys of the first token round were partly shown in
   masked form (four characters) in the conversation; all of them were replaced.
 
@@ -379,9 +381,8 @@ Every `kiwifs` result above is the output Maik pasted or a file his scripts wrot
 Run by the AI collaborator on 2026-10-31 in a Linux cloud container: both example configuration files parse as
 JSON.
 
-Not run: the Claude Desktop half of step 4 (the multi-space example is written, not merged); a tool call from inside
-a Claude Code or Claude Desktop session (the round trip above went through the proxy, driven by a script, not
-through a client); a launchd agent for the server; a `kiwifs update` that works;
+Not run: the Claude Desktop half of step 4 (the multi-space example is written, not merged); a tool call from Claude Desktop or from an interactive Claude Code session (the one client call, `claude -p` at 00:10, was
+non-interactive; every other round trip was driven by a script through the proxy); a launchd agent for the server; a `kiwifs update` that works;
 the uninstall steps; a check of how `markdown lint reject-errors` decides what to reject. The `claude mcp add` syntax is
 now confirmed. The location of the Claude Desktop logs and the JSON-RPC handshake in step 5 were written from
 general knowledge of those tools and are still the least certain parts.
