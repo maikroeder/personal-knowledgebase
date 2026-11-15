@@ -184,21 +184,72 @@ claude mcp add --scope user kiwi-events -- /opt/homebrew/bin/kiwifs mcp --remote
 
 `config/claude_desktop_config.multispace.example.json` has the same three entries for Claude Desktop (not merged
 into the real file yet). Each space offers 71 tools. `kiwi_write` takes an `actor` argument that becomes the git
-author; pass `claude`, so `git log --format=%an` separates agent writes from human ones. There is no
-authentication in this setup (`--auth none`); the server binds to `127.0.0.1` only. Anything on the machine that
-can reach port 3333 can write to all three spaces. `--auth perspace` with per-space tokens
-(`kiwifs token create --root R --space S --scope read|write|admin --actor NAME`) is the next step and was not tried.
+author; pass `claude`, so `git log --format=%an` separates agent writes from human ones. In this first setup there was no authentication (`--auth none`; the server binds to `127.0.0.1` only); see
+"Authentication per space" below for what replaced it and what is still open.
 
 ### Helper scripts (`tools/`)
 
 All read-only except `mcp_writetest.py`, which writes and deletes two pages in the `Events` space and leaves
-commits. Each writes its result next to itself.
+commits, and `merge_tokens.py`, which rewrites the key list in `~/Knowledge/kiwi/.kiwi/config.toml`. Each check writes
+its result next to itself (`tools/*.txt` is ignored by git).
 
 - `check_spaces.sh`: status codes and a search per space against the running server.
 - `mcp_probe.sh`: collects `kiwifs mcp`, `token` and `serve` help texts and probes `/mcp` into `mcp-probe.txt`.
 - `mcp_roundtrip.py`: lists the tools and searches in each space through the proxy, into `mcp-roundtrip.txt`.
 - `mcp_writetest.py`: write, read back, write an invalid page, delete both, git log; into `mcp-writetest.txt`.
 - `lint_summary.py`: counts `kiwifs lint --json` output by kind.
+- `merge_tokens.py`: puts the keys from `~/.kiwi-tokens/*.txt` (the output of `kiwifs token create`) back into
+  `config.toml` as `[[auth.api_keys]]` entries, because each `token create` replaces the list; sets mode 600,
+  keeps a backup, prints space, scope and actor only.
+- `auth_check.sh`: HTTP status per token and space against the running server (keys sent through stdin, never
+  printed), into `auth_check.txt`.
+- `auth_check2.py`, `auth_check3.py`: calls to the server's `/mcp` endpoint with and without a token, and reads
+  of `.kiwi/config.toml`; print status, sizes and True/False only, into `auth_check2.txt`, `auth_check3.txt`.
+
+### Authentication per space (2026-11-15, 23:26 to 23:44)
+
+`--auth perspace` with scoped tokens replaced `--auth none`. Everything here was run by Maik in a terminal; the AI
+collaborator read the result files that the scripts wrote. No key was pasted into the conversation (masked output only).
+
+How it works, as observed with 0.19.58:
+
+- `kiwifs token create --root ~/Knowledge/kiwi --space S --scope read|write|admin --actor NAME` writes an
+  `[[auth.api_keys]]` entry (`actor`, `key`, `scope`, `space`) into `<root>/.kiwi/config.toml`, sets `[auth] type =
+  "perspace"` and prints the key once. `serve` must be started with `--auth perspace` as well; the flag was passed
+  explicitly because it is unknown whether the flag default `none` would override the file.
+- Tokens live in the config of the `--root` only, and are valid for the other spaces as well: a `moin` read token gets
+  200 on `moin` and 401 on the other two, an `Events` write token 200 on `Events` only, and so on. An admin token
+  covers its own space only, so the web UI needs one admin token per space. No token and a wrong token give 401 on all
+  three spaces. The file API refuses `.kiwi/config.toml` (400).
+- Each `token create` replaced the key list instead of appending: four creates left one key, and three more with the
+  server stopped left one key. `kiwifs token list` printed "No API tokens configured." while the file held a key, so
+  it was not used. `tools/merge_tokens.py` restores the keys from the files that `create` was redirected into.
+  Procedure: stop the server, `rm` the old files, create all tokens (one file each in `~/.kiwi-tokens`, mode 600), run
+  `python3 tools/merge_tokens.py`, check with `grep -c 'key = '`, start the server, run `bash tools/auth_check.sh`.
+- The file watcher of the default root committed `.kiwi/config.toml` to that root's own git repository (commit
+  `fswatch: .kiwi/config.toml`, 23:29, one key inside). That repository tracked nothing else and has no remote. The file
+  was untracked (`git rm --cached`), listed in `.git/info/exclude`, and every key was replaced at 23:41; the old key is
+  dead and remains only in that old commit. A new `config.toml` is mode 644 by default; `merge_tokens.py` sets 600.
+- Result matrix after the rotation (server with `--auth perspace`, 23:42): all lines as expected (see
+  `tools/auth_check.sh`); nothing was returned without a valid token on the REST routes.
+
+What is still open:
+
+- `/mcp` of the server (the streamable-HTTP endpoint) answers without a token. With no token: `initialize` 200,
+  `tools/list` 71 tools, a search and a tree call returned data from the default root. A search for a word that
+  exists only in `moin` returned an empty result, so `/mcp` serves the `--root` only. Reading `.kiwi/config.toml` and a
+  path with `..` through it were refused. Writes through `/mcp` were not tried. The proxies registered per space
+  (`kiwifs mcp --remote ... --space S`) are not affected, but nothing stops another process or a web page from
+  calling `/mcp` on `127.0.0.1:3333`; whether the server answers cross-site requests was not tested.
+- Decision, 23:44: layout B. Serve a nearly empty root as `--root` (a hub that holds only the config) and mount the
+  three knowledge roots with `--space` (`kiwi`, `moin`, `Events`), so that the open `/mcp` shows nothing and the keys
+  do not sit next to the notes. Consequences: the space `default` becomes `kiwi`, the tokens and the Claude Code entry
+  for the default space must be re-created, and it is not known whether `kiwifs serve` starts on an empty root. **Not
+  done yet at the time of writing.**
+- The three MCP entries still run without a token (`--api-key` exists on `kiwifs mcp`); the plan is a wrapper script
+  that reads the key from the macOS Keychain, so that no key is stored in `~/.claude.json`. Not done.
+- The key store is a plain file (mode 600) in the `--root`. The keys of the first token round were partly shown in
+  masked form (four characters) in the conversation; all of them were replaced.
 
 ## Uninstall
 
@@ -303,7 +354,7 @@ JSON.
 
 Not run: the Claude Desktop half of step 4 (the multi-space example is written, not merged); a tool call from inside
 a Claude Code or Claude Desktop session (the round trip above went through the proxy, driven by a script, not
-through a client); authentication and tokens; a launchd agent for the server; a `kiwifs update` that works;
+through a client); the hub-root layout (B) and token-protected MCP entries (the matrix above ran against the old layout, with `default` as `--root`); a launchd agent for the server; a `kiwifs update` that works;
 the uninstall steps; a check of how `markdown lint reject-errors` decides what to reject. The `claude mcp add` syntax is
 now confirmed. The location of the Claude Desktop logs and the JSON-RPC handshake in step 5 were written from
 general knowledge of those tools and are still the least certain parts.
