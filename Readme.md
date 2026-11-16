@@ -212,6 +212,7 @@ its result next to itself (`tools/*.txt` is ignored by git).
 - `mcp_roundtrip_auth.py`: read-only round trip through the wrapper for the three spaces and two negative cases (a
   wrong key, no key); prints sizes and error text, into `mcp-roundtrip-auth.txt`.
 - `strip_old_auth.py`: removes the `[auth]` block from a root's `config.toml` (used once, on the old default root).
+- `apikey_check.py`: throwaway-server test of `--auth apikey` for REST, `/mcp` and the proxy's `KIWI_API_KEY` (see below).
 - `merge_tokens.py`: puts the keys from `~/.kiwi-tokens/*.txt` (the output of `kiwifs token create`) back into
   `config.toml` as `[[auth.api_keys]]` entries, because each `token create` replaces the list; sets mode 600,
   keeps a backup, prints space, scope and actor only.
@@ -250,7 +251,8 @@ How it works, as observed with 0.19.58:
 
 What is still open:
 
-- `/mcp` of the server (the streamable-HTTP endpoint) answers without a token, and still does in layout B, where it
+- In `--auth perspace` mode, `/mcp` of the server (the streamable-HTTP endpoint) answers without a token (0.19.58 and
+  0.19.94; a per-space token sent to it made no difference), and still does in layout B, where it
   serves only the hub. Observations from the first layout: with no token: `initialize` 200,
   `tools/list` 71 tools, a search and a tree call returned data from the default root. A search for a word that
   exists only in `moin` returned an empty result, so `/mcp` serves the `--root` only. Reading `.kiwi/config.toml` and a
@@ -299,6 +301,21 @@ What is still open:
 - Options for browsing: (1) a read-only proxy that adds the keys (GET and HEAD only; while it runs, anything on the
   machine that reaches its port reads all spaces without a key); (2) none, using Claude and the files. Not decided at
   the time of writing; the default is (2).
+
+### `/mcp` in apikey mode (2026-11-16, 09:14)
+
+A member of the OpenHeidelberg project said that the server does authenticate MCP (`--auth apikey`, `--api-key`,
+`${KIWI_API_KEY}`). `tools/apikey_check.py` tests that against a throwaway server (port 3334, empty temporary root,
+random throwaway key that is never printed; nothing in `~/Knowledge` is touched). Result with 0.19.94:
+
+- REST: 401 without a token, 200 with the key, 401 with a wrong key.
+- `/mcp` over HTTP without a token: `initialize`, `tools/list` and a tool call all 401. With the key as bearer token:
+  200, 81 tools, the tool call works. So the open `/mcp` is a property of `perspace` mode, not of the server.
+- The stdio proxy `kiwifs mcp --remote <url>` does not read `KIWI_API_KEY`: started with the variable and no flag, it got
+  401 on a tool call, like a proxy with no key. The key has to go on the command line (`--api-key`), as `kiwi-mcp.sh`
+  does.
+- The price of apikey mode is one key for everything: no read-only key for `moin` at the server. The layout of this
+  setup (perspace, hub root) stays; the choice between the two is the owner's and not made at the time of writing.
 
 ## Uninstall
 
